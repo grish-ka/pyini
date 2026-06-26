@@ -1,2 +1,2 @@
 # pyini
-lin kernel stled ini viwer
+linux kernel styled ini viewer
