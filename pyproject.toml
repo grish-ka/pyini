@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyini"
 description = "linux kernel styled ini viewer"
-version = "26.0.1.0a1"
+version = "26.1.0.0"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 maintainers = [
