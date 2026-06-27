@@ -2,8 +2,39 @@ import curses
 import configparser
 import os
 import glob
+import requests
+from packaging import version
+from loguru import logger
 
-# --- 1. GLOBAL UI SETTINGS ---
+# Set your current version here! This is what it checks against GitHub.
+CURRENT_VERSION = "26.1.0.2"
+
+# --- 1. UPDATE CHECKER ---
+def check_update(username: str, repo: str, current_ver: str): 
+    """Checks GitHub for a newer version without crashing the UI."""
+    latest_release_url = f"https://api.github.com/repos/{username}/{repo}/releases/latest"
+    try:
+        # Ultra-short timeout so the UI doesn't hang on launch
+        response = requests.get(latest_release_url, timeout=1.5)
+        response.raise_for_status() 
+    except requests.exceptions.RequestException:
+        return False, None
+
+    latest_version_str = response.json().get("tag_name", "")
+    
+    try:
+        clean_latest = latest_version_str.lstrip('v')
+        clean_current = current_ver.lstrip('v')
+        
+        if version.parse(clean_latest) > version.parse(clean_current):
+            return True, latest_version_str 
+        return False, latest_version_str 
+            
+    except version.InvalidVersion:
+        return False, None
+
+
+# --- 2. GLOBAL UI SETTINGS ---
 def setup_colors():
     curses.start_color()
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)   # Main Background
@@ -22,15 +53,14 @@ def draw_shadow(stdscr, start_y, start_x, box_height, box_width):
     stdscr.refresh()
 
 
-# --- 2. FILE PICKER MENU ---
+# --- 3. FILE PICKER MENU ---
 def find_inis_menu(stdscr):
-    """Scans the current directory for .ini files and lets the user pick one."""
     current_row = 0
     
     while True:
         ini_files = glob.glob("*.ini")
         if not ini_files:
-            return "config.ini" # Fallback if none exist
+            return "config.ini" 
             
         stdscr.clear()
         stdscr.bkgd(' ', curses.color_pair(1))
@@ -74,9 +104,8 @@ def find_inis_menu(stdscr):
             return None
 
 
-# --- 3. POPUP DIALOGS ---
+# --- 4. POPUP DIALOGS ---
 def edit_value_popup(stdscr, key_name, current_value):
-    """Creates a small pop-up box to type a new value."""
     h, w = 7, 50
     sh, sw = stdscr.getmaxyx()
     y, x = (sh // 2) - (h // 2), (sw // 2) - (w // 2)
@@ -106,7 +135,6 @@ def edit_value_popup(stdscr, key_name, current_value):
     return new_value if new_value else current_value
 
 def add_section_popup(stdscr):
-    """Creates a small pop-up box to type a new section name."""
     h, w = 6, 50
     sh, sw = stdscr.getmaxyx()
     y, x = (sh // 2) - (h // 2), (sw // 2) - (w // 2)
@@ -125,7 +153,7 @@ def add_section_popup(stdscr):
     curses.echo()
     curses.cbreak()
     
-    new_name_bytes = win.getstr(2, 2, 40) # Adjusted position for longer prompt
+    new_name_bytes = win.getstr(2, 2, 40) 
     new_name = new_name_bytes.decode('utf-8').strip()
     
     curses.noecho()
@@ -134,7 +162,6 @@ def add_section_popup(stdscr):
     return new_name
 
 def add_key_popup(stdscr):
-    """Creates a small pop-up box to type a new key name."""
     h, w = 6, 50
     sh, sw = stdscr.getmaxyx()
     y, x = (sh // 2) - (h // 2), (sw // 2) - (w // 2)
@@ -162,7 +189,7 @@ def add_key_popup(stdscr):
     return new_name
 
 
-# --- 4. SUBMENU (KEYS & VALUES) ---
+# --- 5. SUBMENU (KEYS & VALUES) ---
 def handle_submenu(stdscr, section_name, config):
     current_row = 0
 
@@ -254,12 +281,18 @@ def handle_submenu(stdscr, section_name, config):
                 config.set(section_name, selected_key, new_val)
 
 
-# --- 5. MAIN MENU ---
-def draw_menu(stdscr, selected_row_idx, sections):
+# --- 6. MAIN MENU ---
+def draw_menu(stdscr, selected_row_idx, sections, latest_version=None):
     stdscr.bkgd(' ', curses.color_pair(1))
     stdscr.clear()
     
-    stdscr.addstr(1, 2, " py-iniview v1.0 - Terminal IDE ", curses.A_BOLD)
+    stdscr.addstr(1, 2, f" py-iniview v{CURRENT_VERSION} - Terminal IDE ", curses.A_BOLD)
+
+    # --- UPDATE BANNER ---
+    if latest_version:
+        update_msg = f" [ Update Available: {latest_version} ] "
+        screen_height, screen_width = stdscr.getmaxyx()
+        stdscr.addstr(1, screen_width - len(update_msg) - 2, update_msg, curses.color_pair(2) | curses.A_BOLD)
 
     screen_height, screen_width = stdscr.getmaxyx()
     box_height, box_width = 18, 74
@@ -305,10 +338,15 @@ def draw_menu(stdscr, selected_row_idx, sections):
 
     win.refresh()
 
-# --- 6. CORE LOOP ---
+# --- 7. CORE LOOP ---
 def main(stdscr):
     setup_colors()
     curses.curs_set(0)
+
+    # Run the update check ONCE at startup
+    # IMPORTANT: Change "grish-ka" and "pyini" to match your actual GitHub username and repo!
+    needs_update, latest_ver = check_update("grish-ka", "pyini", CURRENT_VERSION)
+    display_ver = latest_ver if needs_update else None
 
     # Launch File Picker
     config_file = find_inis_menu(stdscr)
@@ -329,7 +367,7 @@ def main(stdscr):
         if not sections:
             sections = ["(Empty - Press 'a' to add a section)"]
 
-        draw_menu(stdscr, current_row, sections)
+        draw_menu(stdscr, current_row, sections, display_ver)
         
         stdscr.addstr(2, 2, "Hotkeys: [a] Add Section  [d] Delete Section  [s] Save  [q] Quit", curses.color_pair(1) | curses.A_BOLD)
         stdscr.refresh()
