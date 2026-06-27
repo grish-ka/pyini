@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools >= 61.0"] 
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pyini"
+description = "linux kernel styled ini viewer"
+version = "26.0.1.0a1"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+maintainers = [
+    { name = "grish-ka", email = "NO@NO.NOPE" },
+]
+# Tell the builder that dependencies are handled dynamically
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+# Now point it to your requirements file
+dependencies = {file = ["requirements.txt"]}
+
+[project.scripts]
+# This assumes you have a main.py file with a main() function
+pyini = "main:main"
